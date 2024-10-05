@@ -5,7 +5,7 @@ from typing import List
 
 import spacy
 from dataclasses import dataclass
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header, Depends
 from pydantic import BaseModel, root_validator
 from sense2vec import Sense2VecComponent
 from starlette.responses import Response
@@ -19,6 +19,16 @@ if os.getenv('SENSE2VEC') == '1':
     s2v = nlp.add_pipe("sense2vec")
     s2v.from_disk("src/s2v_old")
 
+# Get the valid API key from the environment variable
+SPACY_API_KEY = os.getenv('SPACY_API_KEY')
+
+# Dependency function to validate API key
+def verify_api_key(x_api_key: str = Header(...)):
+    if SPACY_API_KEY is None:
+        raise HTTPException(status_code=500, detail="API key not configured on the server.")
+    
+    if x_api_key != SPACY_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
 
 def enforce_components(components: List[str], message: str) -> None:
     """Throws the <message> if the model doesn't have the <components>."""
@@ -60,7 +70,7 @@ class NERResponse:
 
 
 @app.post('/ner')
-async def recognize_named_entities(request: NERRequest) -> NERResponse:
+async def recognize_named_entities(request: NERRequest, api_key: str = Depends(verify_api_key)) -> NERResponse:
     enforce_components(['ner', 'parser'], 'named entity recognition')
     if request.sense2vec:
         enforce_components(
@@ -138,7 +148,7 @@ class Sense2vecResponse:
 
 
 @app.post('/sense2vec')
-async def sense2vec(request: PhraseInSentence) -> Sense2vecResponse:
+async def sense2vec(request: PhraseInSentence, api_key: str = Depends(verify_api_key)) -> Sense2vecResponse:
     enforce_components(['ner', 'parser', 'sense2vec'], 'sense2vec')
     doc: nlp = nlp(request.sentence, disable=['tagger'])
     phrases: List[SimilarPhrase] = []
@@ -211,7 +221,7 @@ class TokenWithSentence:
 
 
 @app.post('/pos')
-async def tag_parts_of_speech(request: TextModel) -> POSResponse:
+async def tag_parts_of_speech(request: TextModel, api_key: str = Depends(verify_api_key)) -> POSResponse:
     enforce_components(['ner', 'parser', 'tagger'], 'part-of-speech tagging')
     data: List[TaggedText] = []
     doc: nlp = nlp(request.text, disable=['sense2vec'])
@@ -279,7 +289,7 @@ class TokenizerResponse:
 
 
 @app.post('/tokenizer')
-async def tokenize(request: TextModel) -> TokenizerResponse:
+async def tokenize(request: TextModel, api_key: str = Depends(verify_api_key)) -> TokenizerResponse:
     doc: nlp = nlp(
         request.text,
         disable=['tagger', 'parser', 'ner', 'sense2vec']
@@ -293,7 +303,7 @@ class SentencizerResponse:
 
 
 @app.post('/sentencizer')
-async def sentencize(request: TextModel) -> SentencizerResponse:
+async def sentencize(request: TextModel, api_key: str = Depends(verify_api_key)) -> SentencizerResponse:
     enforce_components(['parser'], 'sentence segmentation')
     doc: nlp = nlp(request.text, disable=['tagger', 'ner', 'sense2vec'])
     return SentencizerResponse([sent.text for sent in doc.sents])
