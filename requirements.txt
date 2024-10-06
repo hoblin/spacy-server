@@ -1,9 +1,9 @@
 # Specify fixed versions for spaCy and sense2vec because pretrained models are only compatible with certain versions;
 # and tests use hardcoded outputs, so the program may randomly fail to build if a dynamic version is used.
-sense2vec==2.0.0
+sense2vec==2.0.2
 ujson==4.2.0
 fastapi==0.45.0
 uvicorn==0.15.0
 pytest==6.2.5
-requests==2.26.0
-spacy==3.8.0
+requests==2.32.3
+spacy==3.8.2
